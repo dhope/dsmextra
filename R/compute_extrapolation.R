@@ -357,17 +357,17 @@ compute_extrapolation <- function(
   # Project rasters
   #---------------------------------------------
 
-  for (r in 1:length(reslist$rasters$ExDet)) {
-    if (!is.null(reslist$rasters$ExDet[[r]])) {
-      raster::projection(reslist$rasters$ExDet[[r]]) <- coordinate.system
-    }
-  }
+  # for (r in 1:length(reslist$rasters$ExDet)) {
+  #   if (!is.null(reslist$rasters$ExDet[[r]])) {
+  #     raster::projection(reslist$rasters$ExDet[[r]]) <- coordinate.system
+  #   }
+  # }
 
-  for (r in 1:length(reslist$rasters$mic)) {
-    if (!is.null(reslist$rasters$mic[[r]])) {
-      raster::projection(reslist$rasters$mic[[r]]) <- coordinate.system
-    }
-  }
+  # for (r in 1:length(reslist$rasters$mic)) {
+  #   if (!is.null(reslist$rasters$mic[[r]])) {
+  #     raster::projection(reslist$rasters$mic[[r]]) <- coordinate.system
+  #   }
+  # }
 
   #  #---------------------------------------------
   #  # Print/save summary
