@@ -110,32 +110,47 @@
 #' # Make a map
 #' map_extrapolation(map.type = "extrapolation", extrapolation.object = bioclim.ex)
 
-compute_extrapolation <- function(samples,
-                                  segments,
-                                  covariate.names,
-                                  prediction.grid,
-                                  coordinate.system,
-                                  resolution = NULL,
-                                  verbose = TRUE){
-
+compute_extrapolation <- function(
+  samples,
+  segments,
+  covariate.names,
+  prediction.grid,
+  coordinate.system,
+  resolution = NULL,
+  verbose = TRUE
+) {
   #---------------------------------------------
   # Perform function checks
   #---------------------------------------------
 
   calls <- names(sapply(match.call(), deparse))[-1]
 
-  if(any("segments" %in% calls)) {
-    if(verbose) warning("The 'segments' argument is deprecated, please use 'samples' instead.")
+  if (any("segments" %in% calls)) {
+    if (verbose) {
+      warning(
+        "The 'segments' argument is deprecated, please use 'samples' instead."
+      )
+    }
     samples <- segments
   }
 
-  if(!"data.frame"%in%class(prediction.grid)) stop("pred.grid must be of class data.frame")
-  if(!"data.frame"%in%class(samples)) stop("samples must be of class data.frame")
+  if (!"data.frame" %in% class(prediction.grid)) {
+    stop("pred.grid must be of class data.frame")
+  }
+  if (!"data.frame" %in% class(samples)) {
+    stop("samples must be of class data.frame")
+  }
 
-  if(!"x"%in%names(prediction.grid) | !"y"%in%names(prediction.grid)) stop("pred.grid must contain x and y coordinates")
+  if (!"x" %in% names(prediction.grid) | !"y" %in% names(prediction.grid)) {
+    stop("pred.grid must contain x and y coordinates")
+  }
 
-  if(!all(covariate.names%in%names(samples))) stop("Missing/unrecognised covariates in the sample data")
-  if(!all(covariate.names%in%names(prediction.grid))) stop("Missing/unrecognised covariates in the prediction grid")
+  if (!all(covariate.names %in% names(samples))) {
+    stop("Missing/unrecognised covariates in the sample data")
+  }
+  if (!all(covariate.names %in% names(prediction.grid))) {
+    stop("Missing/unrecognised covariates in the prediction grid")
+  }
 
   coordinate.system <- check_crs(coordinate.system = coordinate.system)
 
@@ -150,7 +165,8 @@ compute_extrapolation <- function(samples,
     dplyr::select(x, y) %>%
     dplyr::mutate(z = 1)
 
-  grid.regular <- try(raster::rasterFromXYZ(check.grid), silent = TRUE)
+  grid.regular <- try(terra::rast(check.grid, type = 'xyz'), silent = TRUE)
+  # raster::rasterFromXYZ(check.grid)
 
   # grid.regular <- try(raster::rasterFromXYZ(check.grid,
   #                     res = ifelse(is.null(resolution), c(NA,NA), resolution)),
@@ -161,50 +177,73 @@ compute_extrapolation <- function(samples,
   #---------------------------------------------
 
   if (class(grid.regular) == "try-error") {
-    if (is.null(resolution)) stop("Prediction grid cells are not regularly spaced.\nA target raster resolution must be specified. See package documentation for details.")
+    if (is.null(resolution)) {
+      stop(
+        "Prediction grid cells are not regularly spaced.\nA target raster resolution must be specified. See package documentation for details."
+      )
+    }
 
-    if (verbose) warning("Prediction grid cells are not regularly spaced.\nData will be rasterised and covariate values averaged. See package documentation for details.")
+    if (verbose) {
+      warning(
+        "Prediction grid cells are not regularly spaced.\nData will be rasterised and covariate values averaged. See package documentation for details."
+      )
+    }
 
     RasteriseGrid <- TRUE
-  } else if (class(grid.regular) == "RasterLayer" & !is.null(resolution)) {
-    if (verbose) warning("New resolution specified.\nData will be rasterised and covariate values averaged. See package documentation for details.")
+  } else if ("SpatRaster" %in% class(grid.regular) & !is.null(resolution)) {
+    if (verbose) {
+      warning(
+        "New resolution specified.\nData will be rasterised and covariate values averaged. See package documentation for details."
+      )
+    }
 
     RasteriseGrid <- TRUE
-
   } else {
     RasteriseGrid <- FALSE
   }
 
-  if(RasteriseGrid){
-
+  if (RasteriseGrid) {
+    # browser()
     check.grid$z <- NULL
-    sp::coordinates(check.grid) <- ~x+y
-    sp::proj4string(check.grid) <- coordinate.system
+    # sp::coordinates(check.grid) <- ~ x + y
+    # sp::proj4string(check.grid) <- coordinate.system
 
     # Create empty raster with desired resolution
 
-    ras <- raster::raster(raster::extent(check.grid), res = resolution)
-    raster::crs(ras) <- coordinate.system
+    ras <- terra::rast(
+      terra::ext(as.matrix(check.grid)),
+      res = resolution,
+      crs = coordinate.system
+    )
+    # ras <- raster::raster(raster::extent(check.grid), res = resolution)
+    # raster::crs(ras) <- coordinate.system
 
     # Create individual rasters for each covariate
 
-    ras.list <- purrr::map(.x = covariate.names,
-                           .f = ~raster::rasterize(as.data.frame(check.grid), ras,
-                                                   prediction.grid[,.x], fun = mean_ras)) %>%
+    ras.list <- purrr::map(
+      .x = covariate.names,
+      .f = ~ terra::rasterize(
+        (check.grid),
+        ras,
+        prediction.grid[, .x],
+        fun = mean,
+        na.rm = T
+      )
+    ) %>%
       purrr::set_names(., covariate.names)
 
     # Combine all rasters
 
-    ras.list <- raster::stack(ras.list)
+    ras.list <- terra::rast(ras.list)
 
     # Update prediction grid
 
-    prediction.grid <- raster::as.data.frame(ras.list, xy = TRUE, na.rm = TRUE)
-
-
+    prediction.grid <- terra::as.data.frame(ras.list, xy = TRUE, na.rm = TRUE)
   } # End if
 
-  if(verbose) message("Computing ...")
+  if (verbose) {
+    message("Computing ...")
+  }
 
   #---------------------------------------------
   # Define reference and target systems
@@ -217,23 +256,21 @@ compute_extrapolation <- function(samples,
   # Run the exdet tool from Mesgaran et al. (2014)
   #---------------------------------------------
 
-  mesgaran <- ExDet(ref = reference,
-                    tg = target,
-                    xp = covariate.names)
+  mesgaran <- ExDet(ref = reference, tg = target, xp = covariate.names)
 
   #---------------------------------------------
   # Add coordinates
   #---------------------------------------------
 
   mesgaran <- prediction.grid %>%
-    dplyr::select(x,y) %>%
+    dplyr::select(x, y) %>%
     cbind(., mesgaran)
 
   #---------------------------------------------
   # Return a list with univariate, combinatorial, and analog conditions as separate elements
   #---------------------------------------------
 
-  reslist <- list(data=NULL, rasters=NULL)
+  reslist <- list(data = NULL, rasters = NULL)
 
   reslist$data$all <- mesgaran
 
@@ -251,31 +288,34 @@ compute_extrapolation <- function(samples,
   #---------------------------------------------
 
   reslist$rasters$ExDet <- reslist$data %>%
-    purrr::map(., ~ dplyr::select(., x, y, ExDet) %>%
-                  safe_raster(.))%>%
+    purrr::map(
+      .,
+      ~ dplyr::select(., x, y, ExDet) %>%
+        safe_raster(., crs = coordinate.system)
+    ) %>%
     purrr::map(., "result")
 
   reslist$rasters$mic <- reslist$data %>%
-    purrr::map(., ~ dplyr::select(., x, y, mic) %>%
-                  safe_raster(.)) %>%
+    purrr::map(
+      .,
+      ~ dplyr::select(., x, y, mic) %>%
+        safe_raster(., crs = coordinate.system)
+    ) %>%
     purrr::map(., "result")
-
+  browser()
   #---------------------------------------------
   # Check that rasters have been produced for each extrapolation type
   #---------------------------------------------
 
-  null.check <- purrr::map_lgl(.x = reslist$rasters$ExDet, .f = ~is.null(.x))
+  null.check <- purrr::map_lgl(.x = reslist$rasters$ExDet, .f = ~ is.null(.x))
 
   ms <- names(null.check[null.check])
-  ms <- purrr::map_dbl(.x = reslist$data[ms], .f = ~nrow(.x))
+  ms <- purrr::map_dbl(.x = reslist$data[ms], .f = ~ nrow(.x))
   # ms <- names(ms[ms>0])
 
-  if(length(ms)>0){
-
-    for(i in 1:length(ms)){
-
-      if(ms[i]>0){
-
+  if (length(ms) > 0) {
+    for (i in 1:length(ms)) {
+      if (ms[i] > 0) {
         # Extract data
 
         ds <- reslist$data[names(ms[i])]
@@ -283,16 +323,23 @@ compute_extrapolation <- function(samples,
         # Build raster
 
         predr <- prediction.grid %>%
-          dplyr::select(x,y) %>%
+          dplyr::select(x, y) %>%
           dplyr::mutate("ID" = 1) %>%
-          raster::rasterFromXYZ(xyz = ., crs = coordinate.system)
+          terra::rast(type = 'xyz', crs = coordinate.system)
+        # raster::rasterFromXYZ(xyz = ., crs = coordinate.system)
 
-        rs <- ps <- purrr::map(.x = ds,
-                               .f= ~raster::rasterize(x = .x[,c("x", "y")], y = predr))
+        rs <- ps <- purrr::map(
+          .x = ds,
+          .f = ~ terra::rasterize(
+            x = .x[, c("x", "y")],
+            y = predr,
+            crs = coordinate.system
+          )
+        )
 
         # Reassign values
 
-        for(i in 1:length(rs)){
+        for (i in 1:length(rs)) {
           rs[[i]][!is.na(rs[[i]])] <- ds[[i]]$ExDet
           ps[[i]][!is.na(ps[[i]])] <- ds[[i]]$mic
         }
@@ -302,10 +349,7 @@ compute_extrapolation <- function(samples,
 
         reslist$rasters$mic <- append(reslist$rasters$mic, ps) %>%
           purrr::discard(is.null)
-
-
       } # End if ms[i] > 0
-
     } # End for loop length(ms)
   } # End if(length(ms)>0)
 
@@ -313,37 +357,50 @@ compute_extrapolation <- function(samples,
   # Project rasters
   #---------------------------------------------
 
-  for(r in 1:length(reslist$rasters$ExDet)){
-    if(!is.null(reslist$rasters$ExDet[[r]]))raster::projection(reslist$rasters$ExDet[[r]]) <- coordinate.system}
+  for (r in 1:length(reslist$rasters$ExDet)) {
+    if (!is.null(reslist$rasters$ExDet[[r]])) {
+      raster::projection(reslist$rasters$ExDet[[r]]) <- coordinate.system
+    }
+  }
 
-  for(r in 1:length(reslist$rasters$mic)){
-    if(!is.null(reslist$rasters$mic[[r]]))raster::projection(reslist$rasters$mic[[r]]) <- coordinate.system}
+  for (r in 1:length(reslist$rasters$mic)) {
+    if (!is.null(reslist$rasters$mic[[r]])) {
+      raster::projection(reslist$rasters$mic[[r]]) <- coordinate.system
+    }
+  }
 
-#  #---------------------------------------------
-#  # Print/save summary
-#  #---------------------------------------------
+  #  #---------------------------------------------
+  #  # Print/save summary
+  #  #---------------------------------------------
 
-  sumres <- summarise_extrapolation(extrapolation.object = reslist,
-                                    covariate.names = covariate.names,
-                                    extrapolation = TRUE,
-                                    mic = TRUE)
+  sumres <- summarise_extrapolation(
+    extrapolation.object = reslist,
+    covariate.names = covariate.names,
+    extrapolation = TRUE,
+    mic = TRUE
+  )
 
   class(sumres) <- c("extrapolation_results_summary", class(sumres))
   reslist <- append(x = reslist, values = list(summary = sumres))
 
   # Add function inputs to obviate need to specify them in map()
-  reslist <- append(x = reslist, values = list(
-                                  covariate.names = covariate.names,
-                                  samples = samples,
-                                  prediction.grid = prediction.grid,
-                                  coordinate.system = coordinate.system))
+  reslist <- append(
+    x = reslist,
+    values = list(
+      covariate.names = covariate.names,
+      samples = samples,
+      prediction.grid = prediction.grid,
+      coordinate.system = coordinate.system
+    )
+  )
 
   reslist <- append(list(type = c("extrapolation", "mic")), reslist)
 
   # Keep it classy
   class(reslist) <- c("extrapolation_results", class(reslist))
 
-  if(verbose) message("Done!")
+  if (verbose) {
+    message("Done!")
+  }
   return(reslist)
-
 }

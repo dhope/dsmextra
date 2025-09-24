@@ -14,8 +14,7 @@
 #' Broennimann O, Di Cola V, Guisan A (2016). ecospat: Spatial Ecology Miscellaneous Methods. R package version 2.1.1. \href{https://CRAN.R-project.org/package=ecospat}{https://CRAN.R-project.org/package=ecospat}.
 #' @keywords internal
 
-ExDet <- function(ref, tg, xp){
-
+ExDet <- function(ref, tg, xp) {
   #---------------------------------------------
   # Converts data to matrix form
   #---------------------------------------------
@@ -27,8 +26,10 @@ ExDet <- function(ref, tg, xp){
   # Min/Max for each covariate in reference system
   #---------------------------------------------
 
-  a <- apply(ref, 2, min, na.rm = TRUE)
-  b <- apply(ref, 2, max, na.rm = TRUE)
+  # a <- apply(ref, 2, min, na.rm = TRUE)
+  a <- matrixStats::colMins(ref, na.rm = T)
+  # b <- apply(ref, 2, max, na.rm = TRUE)
+  b <- matrixStats::colMaxs(ref, na.rm = T)
 
   #---------------------------------------------
   # Matrices of min and max
@@ -41,23 +42,31 @@ ExDet <- function(ref, tg, xp){
   # Use matrix algebra to calculate univariate extrapolation (NT1)
   #---------------------------------------------
 
-  nt1.df <- data.frame(apply(array(data = c(tg - minref, maxref - tg,
-                                            rep(0, nrow(tg) * ncol(tg))),
-                                   dim = c(dim(tg), 3)),
-                             c(1, 2), min)/(maxref - minref))
+  nt1.df <- data.frame(
+    apply(
+      array(
+        data = c(tg - minref, maxref - tg, rep(0, nrow(tg) * ncol(tg))),
+        dim = c(dim(tg), 3)
+      ),
+      c(1, 2),
+      min
+    ) /
+      (maxref - minref)
+  )
   names(nt1.df) <- xp
 
   #---------------------------------------------
   # Compute total NT1
   #---------------------------------------------
 
-  nt1 <- rowSums(nt1.df)
+  nt1 <- matrixStats::rowSums2(as.matrix(nt1.df))
 
   #---------------------------------------------
   # Identify most influential covariates (MIC) for NT1
   #---------------------------------------------
 
-  mic_nt1 <- apply(nt1.df, 1, FUN = function(x) base::which.min(x))
+  # mic_nt1 <- apply(nt1.df, 1, FUN = function(x) base::which.min(x)),
+  mic_nt1 <- max.col(-1 * nt1.df, ties.method = 'first')
 
   #---------------------------------------------
   # Set MIC(nt1) to NA within univariate range
@@ -73,7 +82,8 @@ ExDet <- function(ref, tg, xp){
 
   tg.univ <- matrix(tg[univ.rge, ], ncol = ncol(tg))
 
-  aa <- apply(ref, 2, mean, na.rm = TRUE) # col means
+  # aa <- apply(ref, 2, mean, na.rm = TRUE) # col means
+  aa <- matrixStats::colMeans2(ref, na.rm = T)
   bb <- stats::var(ref, na.rm = TRUE) # covariance matrix
 
   #---------------------------------------------
@@ -93,7 +103,7 @@ ExDet <- function(ref, tg, xp){
   # Combinatorial extrapolation (NT2) as % of that distance
   #---------------------------------------------
 
-  nt2 <- mah.pro/mah.max
+  nt2 <- mah.pro / mah.max
 
   #---------------------------------------------
   # Save values
@@ -107,8 +117,12 @@ ExDet <- function(ref, tg, xp){
 
   # All combinations of covariates when one is dropped and the others remain
 
-  if(length(xp) == 1) cov.combs <- matrix(1)
-  if(length(xp) > 1) cov.combs <- utils::combn(x = 1:ncol(tg.univ), m = length(xp)-1)
+  if (length(xp) == 1) {
+    cov.combs <- matrix(1)
+  }
+  if (length(xp) > 1) {
+    cov.combs <- utils::combn(x = 1:ncol(tg.univ), m = length(xp) - 1)
+  }
 
   cov.combs <- as.list(data.frame(cov.combs))
 
@@ -116,16 +130,16 @@ ExDet <- function(ref, tg, xp){
   # Means and variances
   #---------------------------------------------
 
-  if(length(xp) == 1){
-
-    cov.aa <- cov.combs %>% purrr::map(., ~apply(as.matrix(ref[,.]), 2, mean))
-    cov.bb <- cov.combs %>% purrr::map(., ~var(as.matrix(ref[,.])))
-
+  if (length(xp) == 1) {
+    cov.aa <- cov.combs %>% purrr::map(., ~ apply(ref[, .], 2, mean))
+    cov.bb <- cov.combs %>% purrr::map(., ~ var(ref[, .]))
   } else {
-
-    cov.aa <- cov.combs %>% purrr::map(., ~apply(as.matrix(ref[,.]), 2, mean, na.rm = TRUE))
-    cov.bb <- cov.combs %>% purrr::map(., ~var(as.matrix(ref[,.]), na.rm = TRUE))
-
+    cov.aa <- purrr::map(
+      cov.combs,
+      ~ matrixStats::colMeans2(ref[, .x], na.rm = TRUE)
+    )
+    cov.bb <- cov.combs %>%
+      purrr::map(., ~ var(as.matrix(ref[, .]), na.rm = TRUE))
   }
 
   #---------------------------------------------
@@ -133,17 +147,18 @@ ExDet <- function(ref, tg, xp){
   #---------------------------------------------
 
   # Need min of two analogue observations to calculate Mahalanobis distance
-  if(nrow(tg.univ) < 2){
-
-    warning("Only one prediction point within analogue conditions. Mahalanobis distances cannot be calculated.")
+  if (nrow(tg.univ) < 2) {
+    warning(
+      "Only one prediction point within analogue conditions. Mahalanobis distances cannot be calculated."
+    )
     mah_nt2 <- vector(mode = "list", length = length(cov.combs))
-
   } else {
-
-    mah_nt2 <- purrr::pmap(.l = list(cov.combs, cov.aa, cov.bb),
-                           .f = function(a, b, c) stats::mahalanobis(x = as.matrix(tg.univ[,a]),
-                                                                     center = b,
-                                                                     cov = c))
+    mah_nt2 <- purrr::pmap(
+      .l = list(cov.combs, cov.aa, cov.bb),
+      .f = function(a, b, c) {
+        stats::mahalanobis(x = as.matrix(tg.univ[, a]), center = b, cov = c)
+      }
+    )
   }
 
   # if(length(xp) == 1){
@@ -161,7 +176,6 @@ ExDet <- function(ref, tg, xp){
   #                                                               cov = c))
   # }
 
-
   #---------------------------------------------
   # Retrieve missing covariate names
   #---------------------------------------------
@@ -178,25 +192,34 @@ ExDet <- function(ref, tg, xp){
   mah_nt2 <- mah_nt2 %>% purrr::map_df(., cbind)
   mah_nt2 <- as.matrix(mah_nt2)
 
-  mic_nt2 <- 100 * (mah.pro - mah_nt2)/mah_nt2
+  mic_nt2 <- 100 * (mah.pro - mah_nt2) / mah_nt2
 
   #---------------------------------------------
   # MIC (NT2)
   #---------------------------------------------
 
-  mic_nt2 <- apply(mic_nt2, 1, FUN = function(x) base::which.max(x))
+  # mic_nt2a <- apply(mic_nt2, 1, FUN = function(x) base::which.max(x))
+  mic_nt2 <- max.col(mic_nt2, ties.method = 'first')
 
   #---------------------------------------------
   # Combine results
   #---------------------------------------------
 
-  results <- tibble::tibble(ExDet = nt1, mic_univariate = mic_nt1, mic_combinatorial = NA)
-  if(nrow(tg.univ) > 1)  results$mic_combinatorial[univ.rge] <- mic_nt2
+  results <- tibble::tibble(
+    ExDet = nt1,
+    mic_univariate = mic_nt1,
+    mic_combinatorial = NA
+  )
+  if (nrow(tg.univ) > 1) {
+    results$mic_combinatorial[univ.rge] <- mic_nt2
+  }
 
   # Analog conditions have no MIC
 
   results <- results %>%
-    dplyr::mutate(mic_combinatorial = ifelse(ExDet>=0 & ExDet<=1, NA, mic_combinatorial))
+    dplyr::mutate(
+      mic_combinatorial = ifelse(ExDet >= 0 & ExDet <= 1, NA, mic_combinatorial)
+    )
 
   # Combined MIC column
 
@@ -204,5 +227,4 @@ ExDet <- function(ref, tg, xp){
     dplyr::mutate(mic = rowSums(.[2:3], na.rm = TRUE))
 
   return(results)
-
 }
