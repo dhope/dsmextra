@@ -176,43 +176,13 @@ compare_covariates <- function(
   #---------------------------------------------
 
   if (class(grid.regular) == "try-error") {
-    if (is.null(resolution)) {
-      stop(
-        'Prediction grid cells are not regularly spaced.\nA target raster resolution must be specified.'
-      )
-    }
-
-    if (verbose) {
-      warning(
-        'Prediction grid cells are not regularly spaced.\nData will be rasterised and covariate values averaged.'
-      )
-    }
-
-    check.grid$z <- NULL
-    sp::coordinates(check.grid) <- ~ x + y
-    sp::proj4string(check.grid) <- coordinate.system
-
-    # Create empty raster with desired resolution
-    ras <- raster::raster(raster::extent(check.grid), res = resolution)
-    raster::crs(ras) <- coordinate.system
-
-    # Create individual rasters for each covariate
-    ras.list <- purrr::map(
-      .x = covariate.names,
-      .f = ~ raster::rasterize(
-        as.data.frame(check.grid),
-        ras,
-        prediction.grid[, .x],
-        fun = mean_ras
-      )
-    ) %>%
-      purrr::set_names(., covariate.names)
-
-    # Combine all rasters
-    ras.list <- raster::stack(ras.list)
-
-    # Update prediction grid
-    prediction.grid <- raster::as.data.frame(ras.list, xy = TRUE, na.rm = TRUE)
+    prediction.grid <- rasterize_grid(
+      check.grid,
+      prediction.grid,
+      resolution,
+      coordinate.system,
+      covariate.names
+    )
   } # End if class(grid.regular)
 
   #---------------------------------------------
@@ -227,20 +197,21 @@ compare_covariates <- function(
       width = 60
     )
   }
-
+  # browser()
   extrap <- suppressMessages(purrr::map(
     .x = combs,
     .f = ~ {
-      if (verbose) {
-        pb$tick()
-      }
+      # if (verbose) {
+      #   pb$tick()
+      # }
       compute_extrapolation(
         samples = samples,
         covariate.names = .x,
         prediction.grid = prediction.grid,
         coordinate.system = coordinate.system
       )
-    }
+    },
+    .progress = verbose
   ))
 
   #---------------------------------------------

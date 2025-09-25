@@ -122,7 +122,7 @@ compute_extrapolation <- function(
   #---------------------------------------------
   # Perform function checks
   #---------------------------------------------
-
+  # browser()
   calls <- names(sapply(match.call(), deparse))[-1]
 
   if (any("segments" %in% calls)) {
@@ -204,41 +204,13 @@ compute_extrapolation <- function(
 
   if (RasteriseGrid) {
     # browser()
-    check.grid$z <- NULL
-    # sp::coordinates(check.grid) <- ~ x + y
-    # sp::proj4string(check.grid) <- coordinate.system
-
-    # Create empty raster with desired resolution
-
-    ras <- terra::rast(
-      terra::ext(as.matrix(check.grid)),
-      res = resolution,
-      crs = coordinate.system
+    prediction.grid <- rasterize_grid(
+      check.grid,
+      prediction.grid,
+      resolution,
+      coordinate.system,
+      covariate.names
     )
-    # ras <- raster::raster(raster::extent(check.grid), res = resolution)
-    # raster::crs(ras) <- coordinate.system
-
-    # Create individual rasters for each covariate
-
-    ras.list <- purrr::map(
-      .x = covariate.names,
-      .f = ~ terra::rasterize(
-        (check.grid),
-        ras,
-        prediction.grid[, .x],
-        fun = mean,
-        na.rm = T
-      )
-    ) %>%
-      purrr::set_names(., covariate.names)
-
-    # Combine all rasters
-
-    ras.list <- terra::rast(ras.list)
-
-    # Update prediction grid
-
-    prediction.grid <- terra::as.data.frame(ras.list, xy = TRUE, na.rm = TRUE)
   } # End if
 
   if (verbose) {
@@ -302,7 +274,7 @@ compute_extrapolation <- function(
         safe_raster(., crs = coordinate.system)
     ) %>%
     purrr::map(., "result")
-  browser()
+  # browser()
   #---------------------------------------------
   # Check that rasters have been produced for each extrapolation type
   #---------------------------------------------

@@ -339,3 +339,48 @@ check_crs <- function(coordinate.system) {
 
   return(coordinate.system)
 }
+
+
+rasterize_grid <- function(
+  check.grid,
+  prediction.grid,
+  resolution,
+  coordinate.system,
+  covariate.names
+) {
+  check.grid$z <- NULL
+  # sp::coordinates(check.grid) <- ~ x + y
+  # sp::proj4string(check.grid) <- coordinate.system
+
+  # Create empty raster with desired resolution
+
+  ras <- terra::rast(
+    terra::ext(as.matrix(check.grid)),
+    res = resolution,
+    crs = coordinate.system
+  )
+  # ras <- raster::raster(raster::extent(check.grid), res = resolution)
+  # raster::crs(ras) <- coordinate.system
+
+  # Create individual rasters for each covariate
+
+  ras.list <- purrr::map(
+    .x = covariate.names,
+    .f = ~ terra::rasterize(
+      (check.grid),
+      ras,
+      prediction.grid[, .x],
+      fun = mean,
+      na.rm = T
+    )
+  ) %>%
+    purrr::set_names(., covariate.names)
+
+  # Combine all rasters
+
+  ras.list <- terra::rast(ras.list)
+
+  # Update prediction grid
+
+  prediction.grid <- terra::as.data.frame(ras.list, xy = TRUE, na.rm = TRUE)
+}

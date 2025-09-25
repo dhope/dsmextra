@@ -129,9 +129,9 @@ ExDet <- function(ref, tg, xp) {
   #---------------------------------------------
   # Means and variances
   #---------------------------------------------
-
+  browser()
   if (length(xp) == 1) {
-    cov.aa <- cov.combs %>% purrr::map(., ~ apply(ref[, .], 2, mean))
+    cov.aa <- cov.combs %>% purrr::map(., ~ mean(ref[, .x]))
     cov.bb <- cov.combs %>% purrr::map(., ~ var(ref[, .]))
   } else {
     cov.aa <- purrr::map(
