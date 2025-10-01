@@ -61,25 +61,36 @@
 #'                                coordinate.system = my_crs,
 #'                                covariate.names = c("Depth", "DistToCAS", "SST", "EKE", "NPP"),
 #'                                nearby = 1)
-compute_nearby <- function (samples,
-                            covariate.names,
-                            prediction.grid,
-                            coordinate.system,
-                            nearby,
-                            max.size = 1e7,
-                            no.partitions = 10,
-                            resolution = NULL,
-                            verbose = TRUE) {
-
+compute_nearby <- function(
+  samples,
+  covariate.names,
+  prediction.grid,
+  coordinate.system,
+  nearby,
+  max.size = 1e7,
+  no.partitions = 10,
+  resolution = NULL,
+  verbose = TRUE
+) {
   #---------------------------------------------
   # Perform function checks
   #---------------------------------------------
 
-  if(nearby<=0) stop("nearby must be strictly positive")
-  if(!is.numeric(nearby)) stop("Non-numeric input to argument: nearby")
-  if(max.size<=0) stop("max.size must be strictly positive")
-  if(!is.numeric(max.size)) stop("Non-numeric input to argument: max.size")
-  if(no.partitions>nrow(prediction.grid)) stop("Number of partitions too large")
+  if (nearby <= 0) {
+    stop("nearby must be strictly positive")
+  }
+  if (!is.numeric(nearby)) {
+    stop("Non-numeric input to argument: nearby")
+  }
+  if (max.size <= 0) {
+    stop("max.size must be strictly positive")
+  }
+  if (!is.numeric(max.size)) {
+    stop("Non-numeric input to argument: max.size")
+  }
+  if (no.partitions > nrow(prediction.grid)) {
+    stop("Number of partitions too large")
+  }
 
   coordinate.system <- check_crs(coordinate.system = coordinate.system)
 
@@ -97,100 +108,86 @@ compute_nearby <- function (samples,
   # If grid is irregular, rasterise prediction.grid based on specified resolution
   #---------------------------------------------
 
-  if(class(grid.regular)=="try-error"){
-
-    if(is.null(resolution)) stop('Prediction grid cells are not regularly spaced.\nA target raster resolution must be specified.')
-
-    warning('Prediction grid cells are not regularly spaced.\nData will be rasterised and covariate values averaged.')
-
-    check.grid$z <- NULL
-    sp::coordinates(check.grid) <- ~x+y
-    sp::proj4string(check.grid) <- coordinate.system
-
-    # Create empty raster with desired resolution
-
-    ras <- raster::raster(raster::extent(check.grid), res = resolution)
-    raster::crs(ras) <- coordinate.system
-
-    # Create individual rasters for each covariate
-
-    ras.list <- purrr::map(.x = covariate.names,
-                           .f = ~raster::rasterize(as.data.frame(check.grid), ras,
-                                                   prediction.grid[,.x], fun = mean_ras)) %>%
-      purrr::set_names(., covariate.names)
-
-    # Combine all rasters
-
-    ras.list <- raster::stack(ras.list)
-
-    # Update prediction grid
-
-    prediction.grid <- raster::as.data.frame(ras.list, xy = TRUE, na.rm = TRUE)
-
-    # warning('New prediction grid (pred.grid) saved to global environment.')
-    # assign(x = 'pred.grid', prediction.grid, envir = .GlobalEnv)
-
-
+  if (class(grid.regular) == "try-error") {
+    prediction.grid <- rasterize_grid(
+      check.grid,
+      prediction.grid,
+      resolution,
+      coordinate.system,
+      covariate.names
+    )
   } # End if class(grid.regular)
 
   #---------------------------------------------
   # Check size of input datasets
   #---------------------------------------------
 
-  big.data <- ifelse(prod(nrow(samples), nrow(prediction.grid)) > max.size, TRUE, FALSE)
+  big.data <- ifelse(
+    prod(nrow(samples), nrow(prediction.grid)) > max.size,
+    TRUE,
+    FALSE
+  )
 
   #---------------------------------------------
   # Compute counterfactuals
   #---------------------------------------------
-
-  if(big.data){
-
-    counterfact <- whatif.opt(formula = NULL,
-                              data = make_X(calibration_data = samples,
-                                            test_data = samples,
-                                            var_name = covariate.names),
-                              cfact = make_X(calibration_data = samples,
-                                             test_data = prediction.grid,
-                                             var_name = covariate.names),
-                              nearby = nearby,
-                              no.partitions = no.partitions,
-                              verbose = verbose)
-
-  }else{
-
-    counterfact <- whatif(formula = NULL,
-                           data = make_X(calibration_data = samples,
-                                         test_data = samples,
-                                         covariate.names),
-                           cfact = make_X(calibration_data = samples,
-                                          test_data = prediction.grid,
-                                          covariate.names),
-                           nearby = nearby,
-                           choice = "distance",
-                           verbose = verbose)
-
+  browser()
+  if (big.data) {
+    counterfact <- whatif.opt(
+      formula = NULL,
+      data = make_X(
+        calibration_data = samples,
+        test_data = samples,
+        var_name = covariate.names
+      ),
+      cfact = make_X(
+        calibration_data = samples,
+        test_data = prediction.grid,
+        var_name = covariate.names
+      ),
+      nearby = nearby,
+      no.partitions = no.partitions,
+      verbose = verbose
+    )
+  } else {
+    counterfact <- whatif(
+      formula = NULL,
+      data = make_X(
+        calibration_data = samples,
+        test_data = samples,
+        covariate.names
+      ),
+      cfact = make_X(
+        calibration_data = samples,
+        test_data = prediction.grid,
+        covariate.names
+      ),
+      nearby = nearby,
+      choice = "distance",
+      verbose = verbose
+    )
   }
 
   #---------------------------------------------
   # Convert to raster
   #---------------------------------------------
 
-  rgow <- cbind(prediction.grid[, c("x", "y")],
-                100*counterfact$sum.stat) # in percent
+  rgow <- cbind(prediction.grid[, c("x", "y")], 100 * counterfact$sum.stat) # in percent
   names(rgow)[3] <- 'perc_nearby'
 
-  rgow <- raster::rasterFromXYZ(xyz = rgow,
-                                crs = coordinate.system)
+  rgow <- raster::rasterFromXYZ(xyz = rgow, crs = coordinate.system)
 
+  reslist <- list(
+    type = "nearby",
+    raster = rgow,
+    covariate.names = covariate.names,
+    samples = samples,
+    prediction.grid = prediction.grid,
+    coordinate.system = coordinate.system
+  )
 
-  reslist <- list(type = "nearby",
-                  raster = rgow,
-                  covariate.names = covariate.names,
-                  samples = samples,
-                  prediction.grid = prediction.grid,
-                  coordinate.system = coordinate.system)
-
-
-  if(verbose) message('Done!')
+  if (verbose) {
+    message('Done!')
+  }
   return(reslist)
 }

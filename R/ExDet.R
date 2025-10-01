@@ -129,17 +129,17 @@ ExDet <- function(ref, tg, xp) {
   #---------------------------------------------
   # Means and variances
   #---------------------------------------------
-  browser()
+  # browser()
   if (length(xp) == 1) {
     cov.aa <- cov.combs %>% purrr::map(., ~ mean(ref[, .x]))
     cov.bb <- cov.combs %>% purrr::map(., ~ var(ref[, .]))
   } else {
     cov.aa <- purrr::map(
       cov.combs,
-      ~ matrixStats::colMeans2(ref[, .x], na.rm = TRUE)
+      ~ matrixStats::colMeans2(ref[, .x, drop = FALSE], na.rm = TRUE)
     )
     cov.bb <- cov.combs %>%
-      purrr::map(., ~ var(as.matrix(ref[, .]), na.rm = TRUE))
+      purrr::map(., ~ var(ref[, .x, drop = FALSE], na.rm = TRUE))
   }
 
   #---------------------------------------------

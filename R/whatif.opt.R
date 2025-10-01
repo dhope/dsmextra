@@ -32,23 +32,31 @@
 #' Henry L, Wickham H (2019). purrr: Functional Programming Tools. R package version 0.3.2. \href{https://CRAN.R-project.org/package=purrr}{https://CRAN.R-project.org/package=purrr}.
 #'@keywords internal
 
-whatif.opt <- function (formula = NULL,
-                        data, cfact,
-                        nearby = 1,
-                        miss = "list",
-                        no.partitions,
-                        verbose = TRUE)
-{
-
-  if(verbose) message("Preprocessing data ...")
+whatif.opt <- function(
+  formula = NULL,
+  data,
+  cfact,
+  nearby = 1,
+  miss = "list",
+  no.partitions,
+  verbose = TRUE
+) {
+  if (verbose) {
+    message("Preprocessing data ...")
+  }
 
   #---------------------------------------------
   # Perform function checks
   #---------------------------------------------
 
-  if (!((is.character(cfact) && is.vector(cfact) && length(cfact) ==
-         1) || is.data.frame(cfact) || (is.matrix(cfact) && !is.character(cfact)))) {
-    stop("'cfact' must be either a string, a R data frame, or a R non-character matrix")
+  if (
+    !((is.character(cfact) && is.vector(cfact) && length(cfact) == 1) ||
+      is.data.frame(cfact) ||
+      (is.matrix(cfact) && !is.character(cfact)))
+  ) {
+    stop(
+      "'cfact' must be either a string, a R data frame, or a R non-character matrix"
+    )
   }
 
   if (is.character(cfact)) {
@@ -68,9 +76,14 @@ whatif.opt <- function (formula = NULL,
   }
 
   if (is.list(data) && !(is.data.frame(data))) {
-    if (!((("formula" %in% names(data)) || ("terms" %in%
-                                            names(data))) && (("data" %in% names(data)) || ("model" %in%
-                                                                                            names(data))))) {
+    if (
+      !((("formula" %in% names(data)) ||
+        ("terms" %in%
+          names(data))) &&
+        (("data" %in% names(data)) ||
+          ("model" %in%
+            names(data))))
+    ) {
       stop("the list supplied to 'data' is not a valid output object")
     }
 
@@ -78,24 +91,37 @@ whatif.opt <- function (formula = NULL,
     attr(tt, "intercept") <- rep(0, length(attr(tt, "intercept")))
     if ("data" %in% names(data)) {
       if (is.data.frame(data$data)) {
-        data <- model.matrix(tt, model.frame(tt, data = data$data,
-                                             na.action = NULL))
-      }else {
-        data <- model.matrix(tt, model.frame(tt, data = eval(data$data,
-                                                             envir = .GlobalEnv), na.action = NULL))
+        data <- model.matrix(
+          tt,
+          model.frame(tt, data = data$data, na.action = NULL)
+        )
+      } else {
+        data <- model.matrix(
+          tt,
+          model.frame(
+            tt,
+            data = eval(data$data, envir = .GlobalEnv),
+            na.action = NULL
+          )
+        )
       }
-    }else {
+    } else {
       data <- model.matrix(tt, data = data$model)
     }
     if (!(is.matrix(data))) {
       stop("observed covariate data could not be extracted from output object")
     }
     rm(tt)
-  }else {
-    if (!((is.character(data) && is.vector(data) && length(data) ==
-           1) || is.data.frame(data) || (is.matrix(data) &&
-                                         !is.character(data)))) {
-      stop("'data' must be either a string, a R data frame, a R non-character matrix, or an output object")
+  } else {
+    if (
+      !((is.character(data) && is.vector(data) && length(data) == 1) ||
+        is.data.frame(data) ||
+        (is.matrix(data) &&
+          !is.character(data)))
+    ) {
+      stop(
+        "'data' must be either a string, a R data frame, a R non-character matrix, or an output object"
+      )
     }
     if (is.character(data)) {
       data <- utils::read.table(data)
@@ -113,51 +139,71 @@ whatif.opt <- function (formula = NULL,
   if (!(is.null(formula))) {
     if (identical(class(formula), "formula")) {
       if (!(is.data.frame(as.data.frame(data)))) {
-        stop("'data' must be coercable to a data frame in order to use 'formula'")
+        stop(
+          "'data' must be coercable to a data frame in order to use 'formula'"
+        )
       }
       if (!(is.data.frame(as.data.frame(cfact)))) {
-        stop("'cfact' must be coercable to a data frame in order to use 'formula'")
+        stop(
+          "'cfact' must be coercable to a data frame in order to use 'formula'"
+        )
       }
-      formula <- update.formula(formula, ~. - 1)
+      formula <- update.formula(formula, ~ . - 1)
       ttvar <- all.vars(formula)
       for (i in 1:length(ttvar)) {
         if (!(ttvar[i] %in% dimnames(data)[[2]])) {
-          stop("variables in 'formula' either unlabeled or not present in 'data'")
+          stop(
+            "variables in 'formula' either unlabeled or not present in 'data'"
+          )
         }
         if (!(ttvar[i] %in% dimnames(cfact)[[2]])) {
-          stop("variable(s) in 'formula' either unlabeled or not present in 'cfact'")
+          stop(
+            "variable(s) in 'formula' either unlabeled or not present in 'cfact'"
+          )
         }
       }
       rm(ttvar)
-      data <- model.matrix(formula, data = model.frame(formula,
-                                                       as.data.frame(data), na.action = NULL))
-      cfact <- model.matrix(formula, data = model.frame(formula,
-                                                        as.data.frame(cfact), na.action = NULL))
-    }else {
+      data <- model.matrix(
+        formula,
+        data = model.frame(formula, as.data.frame(data), na.action = NULL)
+      )
+      cfact <- model.matrix(
+        formula,
+        data = model.frame(formula, as.data.frame(cfact), na.action = NULL)
+      )
+    } else {
       stop("'formula' must be of class 'formula'")
     }
   }
 
   if (!(identical(stats::complete.cases(cfact), rep(TRUE, dim(cfact)[1])))) {
     cfact <- na.omit(cfact)
-    if(verbose) message("Note:  counterfactuals with missing values eliminated from cfact")
+    if (verbose) {
+      message(
+        "Note:  counterfactuals with missing values eliminated from cfact"
+      )
+    }
   }
 
   if (is.data.frame(data)) {
     if (is.character(as.matrix(data))) {
-      stop("observed covariate data not coercable to numeric matrix due to character column(s)")
+      stop(
+        "observed covariate data not coercable to numeric matrix due to character column(s)"
+      )
     }
     data <- suppressWarnings(data.matrix(data))
-  }else {
+  } else {
     data <- data.matrix(as.data.frame(data))
   }
 
   if (is.data.frame(cfact)) {
     if (is.character(as.matrix(cfact))) {
-      stop("counterfactual data not coercable to numeric matrix due to character column(s)")
+      stop(
+        "counterfactual data not coercable to numeric matrix due to character column(s)"
+      )
     }
     cfact <- suppressWarnings(data.matrix(cfact))
-  }else{
+  } else {
     cfact <- data.matrix(as.data.frame(cfact))
   }
 
@@ -174,10 +220,13 @@ whatif.opt <- function (formula = NULL,
     stop("number of columns of 'cfact' and 'data' are not equal")
   }
 
-
   if (!(is.null(nearby))) {
-    if (!(is.numeric(nearby) && is.vector(nearby) && length(nearby) ==
-          1 && nearby >= 0)) {
+    if (
+      !(is.numeric(nearby) &&
+        is.vector(nearby) &&
+        length(nearby) == 1 &&
+        nearby >= 0)
+    ) {
       stop("'nearby' must be numeric, greater than or equal to 0, and a scalar")
     }
   }
@@ -195,12 +244,29 @@ whatif.opt <- function (formula = NULL,
   # Original functions
 
   calc.gd <- function(dat, cf, range) {
+    browser()
     n <- nrow(dat)
     m <- nrow(cf)
     dat = t(dat)
     dist = matrix(0, m, n, dimnames = list(1:m, 1:n))
     for (i in 1:m) {
-      temp <- abs(dat - cf[i, ])/range
+      temp <- abs(dat - cf[i, ]) / range
+      if (any(range == 0)) {
+        temp[is.nan(temp)] <- 0
+        temp[temp == Inf] <- NA
+      }
+      dist[i, ] <- colMeans(temp, na.rm = T)
+    }
+    return(t(dist))
+  }
+
+  calc.gd_new <- function(dat, cf, range) {
+    n <- nrow(dat)
+    m <- nrow(cf)
+    dat = t(dat)
+    dist = matrix(0, m, n, dimnames = list(1:m, 1:n))
+    for (i in 1:m) {
+      temp <- abs(dat - cf[i, ]) / range
       if (any(range == 0)) {
         temp[is.nan(temp)] <- 0
         temp[temp == Inf] <- NA
@@ -214,7 +280,7 @@ whatif.opt <- function (formula = NULL,
     n <- nrow(dat)
     dat <- t(dat)
     ff <- function(x) {
-      temp <- abs(dat - x)/rang
+      temp <- abs(dat - x) / rang
       if (any(rang == 0)) {
         temp[is.nan(temp)] <- 0
         temp[temp == Inf] <- NA
@@ -223,63 +289,69 @@ whatif.opt <- function (formula = NULL,
       return(tmp)
     }
     sum.gd.x <- sum(apply(dat, 2, ff), na.rm = TRUE)
-    gv.x <- (0.5 * sum.gd.x)/(n^2)
+    gv.x <- (0.5 * sum.gd.x) / (n^2)
     return(gv.x)
   }
 
-
   calcgd <- function(dat, cf, range, split.factor = no.partitions) {
-
     # Split matrices into smaller chunks
 
-    nlist <- split(1:nrow(dat),
-                   cut(seq_along(1:nrow(dat)),
-                       split.factor, labels = FALSE))
-    mlist <- split(1:nrow(cf),
-                   cut(seq_along(1:nrow(cf)),
-                       split.factor, labels = FALSE))
+    nlist <- split(
+      1:nrow(dat),
+      cut(seq_along(1:nrow(dat)), split.factor, labels = FALSE)
+    )
+    mlist <- split(
+      1:nrow(cf),
+      cut(seq_along(1:nrow(cf)), split.factor, labels = FALSE)
+    )
 
-    chunkdat <- purrr::map(.x = nlist, .f = ~dat[.x,])
-    chunkcf <- purrr::map(.x = mlist, .f = ~cf[.x,])
+    chunkdat <- purrr::map(.x = nlist, .f = ~ dat[.x, ])
+    chunkcf <- purrr::map(.x = mlist, .f = ~ cf[.x, ])
 
     # split samples then rbind
     # split predgrid then cbind
 
-    pb <- dplyr::progress_estimated(split.factor, 0) # Progress bar
+    # pb <- dplyr::progress_estimated(split.factor, 0) # Progress bar
 
-    chunk.results <- purrr::map(.x = chunkdat,
-                                .f = function(x) {
-                                  pb$tick()$print()
-                                  purrr::map(.x = chunkcf,
-                                             function(y) calc.gd(dat = x, cf = y, range = range)) %>%
-                                    do.call(cbind, .)})
+    chunk.results <- purrr::map(
+      .x = chunkdat,
+      .f = function(x) {
+        # pb$tick()$print()
+        purrr::map(.x = chunkcf, function(y) {
+          calc.gd(dat = x, cf = y, range = range)
+        }) %>%
+          do.call(cbind, .)
+      },
+      .progress = T
+    )
 
     chunk.results <- do.call(rbind, chunk.results)
     return(chunk.results)
-
   } # End calc.gd
 
   geomvar <- function(dat, rang) {
-
     n <- nrow(dat)
     dat <- t(dat)
 
     pbb <- dplyr::progress_estimated(ncol(dat))
     # assign(x = 'pbb', value = dplyr::progress_estimated(ncol(dat)), envir = .GlobalEnv)
 
-    fff <- function(x, dat, rang){
+    fff <- function(x, dat, rang) {
       # pbb$tick()$print()
-      return(colMeans(abs(dat - dat[,x])/rang))
+      return(colMeans(abs(dat - dat[, x]) / rang))
     }
 
-    temp <- purrr::map(1:ncol(dat),
-                       ~{pbb$tick()$print()
-                         fff(x = .x, dat = dat, rang = rang) %>%
-                         sum(.)})
+    temp <- purrr::map(
+      1:ncol(dat),
+      ~ {
+        pbb$tick()$print()
+        fff(x = .x, dat = dat, rang = rang) %>%
+          sum(.)
+      }
+    )
 
     temp <- Reduce('+', temp)
-    gv.x <- (0.5 * temp)/(n^2)
-
+    gv.x <- (0.5 * temp) / (n^2)
   }
 
   if (identical(miss, "list")) {
@@ -291,41 +363,51 @@ whatif.opt <- function (formula = NULL,
   # Perform calculations
   #---------------------------------------------
 
-  if(verbose) message("Calculating distances ....")
-
-  samp.range <- apply(data, 2, max, na.rm = TRUE) - apply(data, 2, min, na.rm = TRUE)
-
-
-  if (identical(TRUE, any(samp.range == 0))) {
-    if(verbose) message("Note:  range of at least one variable equals zero")
+  if (verbose) {
+    message("Calculating distances ....")
   }
 
-  dist <- calcgd(dat = data,
-                 cf = cfact,
-                 range = samp.range,
-                 split.factor = no.partitions)
+  samp.range <- apply(data, 2, max, na.rm = TRUE) -
+    apply(data, 2, min, na.rm = TRUE)
+
+  if (identical(TRUE, any(samp.range == 0))) {
+    if (verbose) message("Note:  range of at least one variable equals zero")
+  }
+
+  dist <- calcgd(
+    dat = data,
+    cf = cfact,
+    range = samp.range,
+    split.factor = no.partitions
+  )
 
   gc()
 
-  if(verbose) message("\n")
-  if(verbose) message("Calculating the geometric variance ...")
+  if (verbose) {
+    message("\n")
+  }
+  if (verbose) {
+    message("Calculating the geometric variance ...")
+  }
 
   gv.x <- geomvar(dat = data, rang = samp.range)
 
   gc()
 
-  summary <- colSums(dist <= nearby * gv.x) * (1/n)
+  summary <- colSums(dist <= nearby * gv.x) * (1 / n)
 
   #---------------------------------------------
   # Wrap up
   #---------------------------------------------
 
-  if(verbose) message("\n")
-  if(verbose) message("Finishing up ...")
+  if (verbose) {
+    message("\n")
+  }
+  if (verbose) {
+    message("Finishing up ...")
+  }
 
-  out <- list(call = match.call(), geom.var = gv.x,
-              sum.stat = summary)
-
+  out <- list(call = match.call(), geom.var = gv.x, sum.stat = summary)
 
   class(out) <- "whatif"
   return(invisible(out))
