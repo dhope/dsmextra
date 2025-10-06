@@ -131,7 +131,7 @@ compute_nearby <- function(
   #---------------------------------------------
   # Compute counterfactuals
   #---------------------------------------------
-  browser()
+
   if (big.data) {
     counterfact <- whatif.opt(
       formula = NULL,

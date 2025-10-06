@@ -244,7 +244,6 @@ whatif.opt <- function(
   # Original functions
 
   calc.gd <- function(dat, cf, range) {
-    browser()
     n <- nrow(dat)
     m <- nrow(cf)
     dat = t(dat)

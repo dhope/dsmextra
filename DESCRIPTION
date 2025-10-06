@@ -34,7 +34,8 @@ Imports:
     lpSolve,
     pbmcapply,
     sf,
-    terra
+    terra,
+    Rfast
 Suggests:
     smoothr,
     maps,

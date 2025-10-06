@@ -49,7 +49,7 @@ segs <- spermwhales$segs
 predgrid <- spermwhales$predgrid
 
 # Define relevant coordinate system
-my_crs <- sp::CRS("+proj=aea +lat_1=38 +lat_2=30 +lat_0=34 +lon_0=-73 +x_0=0
+my_crs <- sf::st_crs("+proj=aea +lat_1=38 +lat_2=30 +lat_0=34 +lon_0=-73 +x_0=0
  +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
 # Define covariates

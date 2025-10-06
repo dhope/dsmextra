@@ -41,7 +41,6 @@ ExDet <- function(ref, tg, xp) {
   #---------------------------------------------
   # Use matrix algebra to calculate univariate extrapolation (NT1)
   #---------------------------------------------
-
   nt1.df <- data.frame(
     apply(
       array(
@@ -90,8 +89,8 @@ ExDet <- function(ref, tg, xp) {
   # Mahalanobis distance from centre of environmental space in reference system
   #---------------------------------------------
 
-  mah.ref <- stats::mahalanobis(x = ref, center = aa, cov = bb)
-  mah.pro <- stats::mahalanobis(x = tg.univ, center = aa, cov = bb)
+  mah.ref <- Rfast::mahala(x = ref, mu = aa, sigma = bb)
+  mah.pro <- Rfast::mahala(x = tg.univ, mu = aa, sigma = bb)
 
   #---------------------------------------------
   # Maximum Mahalanobis distance
